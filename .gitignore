@@ -1,0 +1,19 @@
+# Ignore everything
+*
+
+# But not these
+!.gitignore
+!src/
+!composer.json
+!composer.lock
+!wash-window-app.php
+!index.php
+
+# Ignore all inside src
+src/*
+
+# Unignore js and includes and their contents
+!src/js/
+!src/js/**
+!src/includes/
+!src/includes/**

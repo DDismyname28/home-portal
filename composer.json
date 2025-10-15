@@ -1,0 +1,22 @@
+{
+  "name": "hiiinc/home-portal",
+  "description": "Home services Portal",
+  "type": "wordpress-plugin",
+  "autoload": {
+    "psr-4": {
+      "HiiincHomePortalApp\\": "src/"
+    }
+  },
+  "authors": [
+    {
+      "name": "DDismyname28",
+      "email": "djofil@hiiinc.net"
+    }
+  ],
+  "require": {},
+  "config": {
+    "platform": {
+      "php": "7.4.0"
+    }
+  }
+}
