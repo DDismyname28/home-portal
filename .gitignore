@@ -1,19 +1,23 @@
-# Ignore everything
+# Ignore everything by default
 *
 
-# But not these
+# Always include .gitignore and main plugin files
 !.gitignore
-!src/
+!home-portal.php
 !composer.json
 !composer.lock
-!wash-window-app.php
-!index.php
+!loader.php
 
-# Ignore all inside src
-src/*
-
-# Unignore js and includes and their contents
-!src/js/
-!src/js/**
+# Include src subfolders
+!src/
+!src/assets/
+!src/assets/**
 !src/includes/
 !src/includes/**
+
+# Ignore vendor (if you don't want to push dependencies)
+vendor/
+
+# Optional: ignore React build outputs if using create-react-app
+react/build/
+react/node_modules/
