@@ -2,9 +2,12 @@
 
 namespace HiiincHomePortalApp\Includes;
 
+if (!defined('ABSPATH')) exit;
+
 class SignupHandler {
 
     public function __construct() {
+        add_shortcode('vendor_register', [$this, 'render_signup_form']);
         add_action('rest_api_init', [$this, 'register_routes']);
     }
 
@@ -16,65 +19,78 @@ class SignupHandler {
         ]);
     }
 
+    public function render_signup_form() {
+        return '<div id="react-signup-root"></div>';
+    }
+
     public function handle_signup($request) {
         $data = $request->get_json_params();
 
-        $username = sanitize_user($data['username'] ?? '');
-        $email = sanitize_email($data['email'] ?? '');
-        $first_name = sanitize_text_field($data['firstName'] ?? '');
-        $last_name = sanitize_text_field($data['lastName'] ?? '');
-        $role = $data['membershipType'] === 'provider' ? 'local_provider' : 'home_member';
+        $username    = sanitize_user($data['username'] ?? '');
+        $email       = sanitize_email($data['email'] ?? '');
+        $membership  = $data['membershipType'] ?? 'regular'; // 'regular' or 'provider'
+        $firstName   = sanitize_text_field($data['firstName'] ?? '');
+        $lastName    = sanitize_text_field($data['lastName'] ?? '');
+        $companyName = sanitize_text_field($data['companyName'] ?? '');
+        $street      = sanitize_text_field($data['streetAddress'] ?? '');
+        $zip         = sanitize_text_field($data['zipCode'] ?? '');
+        $city        = sanitize_text_field($data['city'] ?? '');
+        $state       = sanitize_text_field($data['state'] ?? '');
+
+        // Map frontend membership to WP roles
+        $role = ($membership === 'provider') ? 'local_provider' : 'home_member';
+
+        // Ensure role exists
+        if (!function_exists('get_editable_roles')) {
+            require_once ABSPATH . 'wp-admin/includes/user.php';
+        }
+        if (!array_key_exists($role, get_editable_roles())) {
+            $role = 'subscriber';
+        }
 
         if (username_exists($username) || email_exists($email)) {
-            return [
-                'success' => false,
-                'message' => 'Username or email already exists.'
-            ];
+            return ['success' => false, 'message' => 'Username or email already exists'];
         }
 
-        // Generate random password
+        // Create user
         $password = wp_generate_password(12, false);
-        $user_id = wp_create_user($username, $password, $email);
+        $user_id  = wp_create_user($username, $password, $email);
 
         if (is_wp_error($user_id)) {
-            return [
-                'success' => false,
-                'message' => $user_id->get_error_message()
-            ];
+            return ['success' => false, 'message' => $user_id->get_error_message()];
         }
 
-        // Set user meta
+        // Assign correct role
+        $user = new \WP_User($user_id);
+        $user->set_role($role);
+
+        // Update name
         wp_update_user([
-            'ID' => $user_id,
-            'first_name' => $first_name,
-            'last_name' => $last_name,
-            'role' => $role
+            'ID'         => $user_id,
+            'first_name' => $firstName,
+            'last_name'  => $lastName,
         ]);
 
-        if ($role === 'local_provider') {
-            update_user_meta($user_id, 'company_name', sanitize_text_field($data['companyName'] ?? ''));
-            update_user_meta($user_id, 'street_address', sanitize_text_field($data['streetAddress'] ?? ''));
-            update_user_meta($user_id, 'zip_code', sanitize_text_field($data['zipCode'] ?? ''));
-            update_user_meta($user_id, 'city', sanitize_text_field($data['city'] ?? ''));
-            update_user_meta($user_id, 'state', sanitize_text_field($data['state'] ?? ''));
+        // Save meta
+        if ($role === 'local_provider' && $companyName) {
+            update_user_meta($user_id, 'companyName', $companyName);
         }
+        update_user_meta($user_id, 'streetAddress', $street);
+        update_user_meta($user_id, 'zipCode', $zip);
+        update_user_meta($user_id, 'city', $city);
+        update_user_meta($user_id, 'state', $state);
 
-        // Send password reset email
+        // Send password reset link
         $reset_key = get_password_reset_key(get_userdata($user_id));
-        $reset_url = network_site_url("wp-login.php?action=rp&key={$reset_key}&login=" . rawurlencode($username), 'login');
-
-        $message = "Hi {$first_name},\n\n";
-        $message .= "Your account has been created. Click the link below to set your password:\n";
-        $message .= $reset_url . "\n\n";
-        $message .= "Thank you for joining Home Portal!";
-
-        wp_mail($email, 'Set Your Home Portal Password', $message);
+        if (!is_wp_error($reset_key)) {
+            $reset_url = network_site_url("wp-login.php?action=rp&key={$reset_key}&login=" . rawurlencode($username), 'login');
+            $message   = "Hi {$firstName},\n\nYour account has been created. Click here to set your password:\n$reset_url\n\nThank you!";
+            wp_mail($email, 'Set Your Home Portal Password', $message);
+        }
 
         return [
             'success' => true,
-            'message' => 'Account created successfully! Please check your email to set your password.',
-            // Optional: can auto-login if you skip password reset
-            // 'redirect_url' => get_permalink(Dashboard::get_page_id())
+            'message' => 'Account created successfully! Check your email to set your password.'
         ];
     }
 }
