@@ -8,9 +8,9 @@ class Dashboard {
     const OPTION_KEY = 'hiiinc_dashboard_page_id';
     const SLUG = 'vendor-dashboard';
     const TITLE = 'Vendor Dashboard';
+    const SIGNUP_SLUG = 'signup';
 
     public static function activate() {
-        // if page exists by slug, store and return
         $page = get_page_by_path(self::SLUG);
         if ($page) {
             update_option(self::OPTION_KEY, $page->ID);
@@ -33,7 +33,7 @@ class Dashboard {
     public static function deactivate() {
         $page_id = get_option(self::OPTION_KEY);
         if ($page_id) {
-            wp_delete_post((int)$page_id, true); // hard-delete
+            wp_delete_post((int)$page_id, true);
             delete_option(self::OPTION_KEY);
         }
     }
@@ -41,4 +41,20 @@ class Dashboard {
     public static function get_page_id(): int {
         return (int) get_option(self::OPTION_KEY, 0);
     }
+
+    public static function restrict_access() {
+        $dashboard_id = self::get_page_id();
+        if (is_page($dashboard_id) && !is_user_logged_in()) {
+            $signup_page = get_page_by_path(self::SIGNUP_SLUG);
+            $signup_url = $signup_page ? get_permalink($signup_page->ID) : site_url('/' . self::SIGNUP_SLUG);
+
+            wp_die(
+                'You are not authorized to view this page. Please <a href="' . esc_url($signup_url) . '">sign up or log in</a> first.',
+                'Unauthorized Access',
+                ['response' => 403]
+            );
+        }
+    }
 }
+
+add_action('template_redirect', [Dashboard::class, 'restrict_access']);

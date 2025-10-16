@@ -30,15 +30,18 @@ class SigninHandler {
             ];
         }
 
-        // Optional: return user info
+        // Login the user
+        wp_set_current_user($user->ID);
+        wp_set_auth_cookie($user->ID, true);
+
+        // Redirect URL to dashboard
+        $dashboard_id = \HiiincHomePortalApp\Includes\Dashboard::get_page_id();
+        $redirect_url = $dashboard_id ? get_permalink($dashboard_id) : site_url('/');
+
         return [
             'success' => true,
-            'user' => [
-                'ID' => $user->ID,
-                'username' => $user->user_login,
-                'email' => $user->user_email,
-                'role' => implode(', ', $user->roles),
-            ],
+            'message' => 'Logged in successfully!',
+            'redirect_url' => $redirect_url,
         ];
     }
 }

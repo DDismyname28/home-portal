@@ -70,10 +70,11 @@ class SignupHandler {
 
         wp_mail($email, 'Set Your Home Portal Password', $message);
 
-
         return [
             'success' => true,
-            'message' => 'Account created successfully! Please check your email to set your password.'
+            'message' => 'Account created successfully! Please check your email to set your password.',
+            // Optional: can auto-login if you skip password reset
+            // 'redirect_url' => get_permalink(Dashboard::get_page_id())
         ];
     }
 }
