@@ -7,11 +7,11 @@
 !composer.json
 !composer.lock
 
-# Include the src folder (but ignore its vendor)
+# Include the src folder and everything inside (except vendor)
 !src/
 src/vendor/
 
-# Include the react folder (but ignore node_modules)
+# Include the react folder and everything inside (except node_modules)
 !react/
 react/node_modules/
 
