@@ -11,7 +11,17 @@ class ProfileHandler {
     }
 
     public function register_routes() {
-        // Update profile endpoint
+        // Route for getting current user info
+        register_rest_route('home-portal/v1', '/me', [
+            'methods' => 'GET',
+            'callback' => [$this, 'get_current_user'],
+            'permission_callback' => function ($request) {
+                $nonce = $request->get_header('X-WP-Nonce');
+                return is_user_logged_in() && wp_verify_nonce($nonce, 'wp_rest');
+            },
+        ]);
+
+        // Route for updating profile
         register_rest_route('home-portal/v1', '/update-profile', [
             'methods' => 'POST',
             'callback' => [$this, 'update_profile'],
@@ -19,118 +29,114 @@ class ProfileHandler {
                 return is_user_logged_in();
             },
         ]);
-
-        // Fetch current user endpoint
-        register_rest_route('home-portal/v1', '/me', [
-            'methods' => 'GET',
-            'callback' => [$this, 'get_current_user'],
-            'permission_callback' => function () {
-                return is_user_logged_in();
-            },
-        ]);
     }
 
     public function get_current_user() {
-        $user_id = get_current_user_id();
-        if (!$user_id) return ['success' => false, 'message' => 'Not logged in'];
+        $current_user = wp_get_current_user();
 
-        $user_data = get_userdata($user_id);
+        if (!$current_user || $current_user->ID === 0) {
+            return [
+                'success' => false,
+                'message' => 'User not logged in.',
+            ];
+        }
 
-        // Fetch meta: support both camelCase and snake_case
-        $company = get_user_meta($user_id, 'companyName', true) ?: get_user_meta($user_id, 'company_name', true);
-        $street  = get_user_meta($user_id, 'streetAddress', true) ?: get_user_meta($user_id, 'street_address', true);
-        $zip     = get_user_meta($user_id, 'zipCode', true) ?: get_user_meta($user_id, 'zip_code', true);
-        $city    = get_user_meta($user_id, 'city', true);
-        $state   = get_user_meta($user_id, 'state', true);
-        $avatar  = get_user_meta($user_id, 'avatar', true);
+        // Determine role
+        $role = in_array('local_provider', (array)$current_user->roles)
+            ? 'local_provider'
+            : (in_array('home_member', (array)$current_user->roles)
+                ? 'home_member'
+                : implode(',', $current_user->roles));
+
+        // Meta fields
+        $meta = [
+            'companyName'   => get_user_meta($current_user->ID, 'company_name', true),
+            'streetAddress' => get_user_meta($current_user->ID, 'street_address', true),
+            'zipCode'       => get_user_meta($current_user->ID, 'zip_code', true),
+            'city'          => get_user_meta($current_user->ID, 'city', true),
+            'state'         => get_user_meta($current_user->ID, 'state', true),
+        ];
+
+        // Avatar handling
+        $avatar = get_user_meta($current_user->ID, 'avatar', true);
+        $avatar = trim(str_replace('\\', '', $avatar));
+        if (empty($avatar)) {
+            $avatar = get_avatar_url($current_user->ID);
+            if (empty($avatar)) {
+                // Prefer first + last name, fallback to username
+                $first = $current_user->first_name ?: '';
+                $last  = $current_user->last_name ?: '';
+                $name  = trim($first . ' ' . $last);
+                if (empty($name)) {
+                    $name = $current_user->user_login;
+                }
+
+                $avatar = "https://ui-avatars.com/api/?name=" . urlencode($name) . "&background=0D8ABC&color=fff";
+            }
+        }
 
         return [
             'success' => true,
             'user' => [
-                'id'            => $user_data->ID,
-                'username'      => $user_data->user_login,
-                'firstName'     => $user_data->first_name,
-                'lastName'      => $user_data->last_name,
-                'email'         => $user_data->user_email,
-                'role'          => array_values((array)$user_data->roles),
-                'companyName'   => $company,
-                'streetAddress' => $street,
-                'zipCode'       => $zip,
-                'city'          => $city,
-                'state'         => $state,
-                'avatar'        => $avatar,
-            ]
+                'ID'            => $current_user->ID,
+                'username'      => $current_user->user_login,
+                'email'         => $current_user->user_email,
+                'firstName'     => $current_user->first_name,
+                'lastName'      => $current_user->last_name,
+                'role'          => $role,
+                'avatar'        => esc_url_raw($avatar),
+                'companyName'   => $meta['companyName'],
+                'streetAddress' => $meta['streetAddress'],
+                'zipCode'       => $meta['zipCode'],
+                'city'          => $meta['city'],
+                'state'         => $meta['state'],
+            ],
         ];
     }
 
     public function update_profile($request) {
         $user_id = get_current_user_id();
+        if (!$user_id) {
+            return ['success' => false, 'message' => 'User not logged in'];
+        }
+
         $data = $request->get_json_params();
+        if (empty($data)) $data = $request->get_params();
 
-        if (!$user_id) return ['success' => false, 'message' => 'User not logged in'];
+        // Update basic info
+        wp_update_user([
+            'ID'         => $user_id,
+            'first_name' => sanitize_text_field($data['firstName'] ?? ''),
+            'last_name'  => sanitize_text_field($data['lastName'] ?? ''),
+            'user_email' => !empty($data['email']) ? sanitize_email($data['email']) : get_userdata($user_id)->user_email,
+        ]);
 
-        $user_data = get_userdata($user_id);
-        $roles = (array) $user_data->roles;
-
-        // Update username safely
-        if (!empty($data['username'])) {
-            $new_username = sanitize_user($data['username']);
-            if ($new_username !== $user_data->user_login && !username_exists($new_username)) {
-                wp_update_user(['ID' => $user_id, 'user_login' => $new_username]);
-            }
-        }
-
-        // Update core fields
-        if (isset($data['firstName']) || isset($data['lastName'])) {
-            wp_update_user([
-                'ID' => $user_id,
-                'first_name' => sanitize_text_field($data['firstName'] ?? ''),
-                'last_name'  => sanitize_text_field($data['lastName'] ?? ''),
-            ]);
-        }
-
-        if (!empty($data['email'])) {
-            wp_update_user(['ID' => $user_id, 'user_email' => sanitize_email($data['email'])]);
-        }
-
-        // Update company if Local Provider
-        if (in_array('local_provider', $roles, true) && isset($data['companyName'])) {
-            update_user_meta($user_id, 'companyName', sanitize_text_field($data['companyName']));
-            update_user_meta($user_id, 'company_name', sanitize_text_field($data['companyName']));
-        }
-
-        // Update meta fields (both camelCase and snake_case)
+        // Update meta fields
         $meta_map = [
+            'companyName'   => 'company_name',
             'streetAddress' => 'street_address',
             'zipCode'       => 'zip_code',
             'city'          => 'city',
             'state'         => 'state',
         ];
 
-        foreach ($meta_map as $camel => $snake) {
-            if (isset($data[$camel])) {
-                update_user_meta($user_id, $camel, sanitize_text_field($data[$camel]));
-                update_user_meta($user_id, $snake, sanitize_text_field($data[$camel]));
+        foreach ($meta_map as $form_key => $meta_key) {
+            if (isset($data[$form_key])) {
+                update_user_meta($user_id, $meta_key, sanitize_text_field($data[$form_key]));
             }
         }
 
-        // Handle avatar upload (base64)
-        if (!empty($data['avatar']) && strpos($data['avatar'], 'data:image') === 0) {
-            list(, $avatar_data) = explode(',', $data['avatar']);
-            $avatar_data = base64_decode($avatar_data);
-
-            $upload_dir = wp_upload_dir();
-            $dir = trailingslashit($upload_dir['basedir']) . 'profile-avatars/';
-            if (!file_exists($dir)) wp_mkdir_p($dir);
-
-            $file_name = 'avatar-' . $user_id . '-' . time() . '.png';
-            $file_path = $dir . $file_name;
-            file_put_contents($file_path, $avatar_data);
-
-            $avatar_url = trailingslashit($upload_dir['baseurl']) . 'profile-avatars/' . $file_name;
-            update_user_meta($user_id, 'avatar', esc_url_raw($avatar_url));
+        // Handle avatar upload
+        if (!empty($_FILES['file']['tmp_name'])) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+            $upload = wp_handle_upload($_FILES['file'], ['test_form' => false]);
+            if (empty($upload['error']) && !empty($upload['url'])) {
+                $avatar_url = trim(str_replace('\\', '', esc_url_raw($upload['url'])));
+                update_user_meta($user_id, 'avatar', $avatar_url);
+            }
         }
 
+        // Return updated data
         return $this->get_current_user();
     }
 }
