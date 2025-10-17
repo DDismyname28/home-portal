@@ -6,11 +6,15 @@
 !composer.json
 !composer.lock.json
 !react/
+!react/**/
+!react/**/*
+
 !src/
+!src/**/
+!src/**/*
 
 # Ignore vendor folder completely
 /vendor/
 
-# Inside react, ignore node_modules but include everything else
+# Inside react, ignore node_modules only
 react/node_modules/
-!react/**/*
