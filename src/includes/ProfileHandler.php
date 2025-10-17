@@ -59,21 +59,26 @@ class ProfileHandler {
 
         // Avatar handling
         $avatar = get_user_meta($current_user->ID, 'avatar', true);
-        $avatar = trim(str_replace('\\', '', $avatar));
+        $use_ui_avatar = false;
+
         if (empty($avatar)) {
             $avatar = get_avatar_url($current_user->ID);
-            if (empty($avatar)) {
-                // Prefer first + last name, fallback to username
-                $first = $current_user->first_name ?: '';
-                $last  = $current_user->last_name ?: '';
-                $name  = trim($first . ' ' . $last);
-                if (empty($name)) {
-                    $name = $current_user->user_login;
-                }
 
-                $avatar = "https://ui-avatars.com/api/?name=" . urlencode($name) . "&background=0D8ABC&color=fff";
+            // Check if Gravatar returns default "mystery man"
+            if (strpos($avatar, 'd=mm') !== false) {
+                $use_ui_avatar = true;
             }
         }
+
+        if ($use_ui_avatar) {
+            $first = $current_user->first_name ?: '';
+            $last  = $current_user->last_name ?: '';
+            $name  = trim($first . ' ' . $last);
+            if (empty($name)) $name = $current_user->user_login;
+
+            $avatar = "https://ui-avatars.com/api/?name=" . urlencode($name) . "&background=0D8ABC&color=fff";
+        }
+
 
         return [
             'success' => true,

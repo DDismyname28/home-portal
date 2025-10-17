@@ -144,9 +144,10 @@ const SignupForm = () => {
           <div
             className={`notification ${notification.type}`}
             style={{ whiteSpace: "pre-line" }}
-          >
-            {notification.message}
-          </div>
+            dangerouslySetInnerHTML={{
+              __html: notification.message,
+            }}
+          />
         )}
 
         <form onSubmit={handleSubmit}>

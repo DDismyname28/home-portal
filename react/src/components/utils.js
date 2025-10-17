@@ -12,5 +12,10 @@ export const getDefaultAvatar = (user = {}) => {
 
 export const normalizeAvatarUrl = (url) => {
   if (!url || !url.trim()) return "";
-  return url.replace(/\\/g, "").replace(/\?v=\d+/, "") + "?v=" + Date.now();
+  let cleanUrl = url.trim().replace(/\\/g, "");
+
+  // Remove cache-busting ?v=123 or &v=123 at the end of the URL
+  cleanUrl = cleanUrl.replace(/([&?])v=\d+$/, "");
+
+  return cleanUrl;
 };

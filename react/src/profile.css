@@ -137,7 +137,7 @@ input:focus {
   }
 }
 
-.modal-spinner {
+/* .modal-spinner {
   position: absolute;
   top: 0;
   left: 0;
@@ -163,4 +163,4 @@ input:focus {
   to {
     transform: rotate(360deg);
   }
-}
+} */

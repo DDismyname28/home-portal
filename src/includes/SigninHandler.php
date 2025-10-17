@@ -24,9 +24,20 @@ class SigninHandler {
         $user = wp_authenticate($login, $password);
 
         if (is_wp_error($user)) {
+            $error_code = $user->get_error_code();
+
+            // Generic message to avoid exposing whether username exists
+            $message = 'The login credentials you entered are incorrect.';
+
+            // If the issue is wrong password, add a password reset link
+            if (in_array($error_code, ['incorrect_password', 'invalid_username'])) {
+                $lost_password_url = wp_lostpassword_url();
+                $message .= ' <a href="' . esc_url($lost_password_url) . '">Forgot your password?</a>';
+            }
+
             return [
                 'success' => false,
-                'message' => $user->get_error_message(),
+                'message' => $message,
             ];
         }
 
