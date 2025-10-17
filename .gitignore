@@ -1,16 +1,16 @@
-# Ignore node_modules in react
+# Ignore everything in the root directory
+/*
+
+# But include these specific files and folders
+!home-portal.php
+!composer.json
+!composer.lock.json
+!react/
+!src/
+
+# Ignore vendor folder completely
+/vendor/
+
+# Inside react, ignore node_modules but include everything else
 react/node_modules/
-
-# Optionally ignore build/dist and env files
-react/dist/
-react/build/
-react/.env
-react/.DS_Store
-
-# Ignore vendor folder in src
-src/vendor/
-
-# Ignore system files
-.DS_Store
-Thumbs.db
-.env
+!react/**/*

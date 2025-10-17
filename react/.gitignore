@@ -1,22 +1,16 @@
-# Ignore everything by default
-*
+# Ignore everything in the root directory
+/*
 
-# Allow these core files and folders
-!.gitignore
+# But include these specific files and folders
 !home-portal.php
 !composer.json
-!composer.lock
-
-# Include the src folder (but ignore its vendor)
-!src/
-src/vendor/
-
-# Include the react folder (but ignore node_modules)
+!composer.lock.json
 !react/
-react/node_modules/
+!src/
 
-# Optional: Ignore React build and system files
-react/dist/
-react/build/
-react/.env
-react/.DS_Store
+# Ignore vendor folder completely
+/vendor/
+
+# Inside react, ignore node_modules but include everything else
+react/node_modules/
+!react/**/*
