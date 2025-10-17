@@ -1,25 +1,27 @@
 # Ignore everything by default
 *
 
-# Allow important files
+# Allow important root files
 !.gitignore
 !composer.json
 !composer.lock
 !home-portal.php
 
-# Allow src and react folder content
+# Include src folder and all its contents
 !src/
 !src/**
+
+# Include react folder and all contents
 !react/
 !react/**
 
-# Ignore node_modules inside react
+# But still ignore node_modules inside react
 react/node_modules/
 
-# Ignore vendor folder completely
+# Exclude vendor folder completely
 vendor/
 
-# System files
+# Common system files to ignore
 .DS_Store
 Thumbs.db
 .env
