@@ -1,55 +1,45 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { FaPlus, FaEdit, FaTrash } from "react-icons/fa";
+import "../../App.css";
 
-export default function Customers() {
+export default function Services() {
   const base = [
     {
       id: 1,
-      name: "Alice Johnson",
-      company: "Acme Inc",
-      email: "alice@acme.com",
-      phone: "123-456-7890",
-      country: "USA",
+      name: "Aircon Cleaning",
+      category: "Cleaning",
+      price: 80,
       status: "Active",
     },
     {
       id: 2,
-      name: "Bob Smith",
-      company: "Beta Corp",
-      email: "bob@beta.com",
-      phone: "234-567-8901",
-      country: "Canada",
+      name: "Plumbing Repair",
+      category: "Repair",
+      price: 120,
       status: "Inactive",
     },
     {
       id: 3,
-      name: "Carol White",
-      company: "Gamma LLC",
-      email: "carol@gamma.com",
-      phone: "345-678-9012",
-      country: "UK",
+      name: "Lawn Mowing",
+      category: "Landscaping",
+      price: 60,
       status: "Active",
     },
   ];
-
-  function generate(count = 40) {
-    const arr = [];
-    for (let i = 0; i < count; i++) {
-      const b = base[i % base.length];
-      arr.push({ ...b, id: i + 1, name: `${b.name.split(" ")[0]} ${i + 1}` });
-    }
-    return arr;
-  }
 
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
+  const [showModal, setShowModal] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+
   const perPage = 10;
 
   useEffect(() => {
     setTimeout(() => {
-      setData(generate(100));
+      setData(base);
       setLoading(false);
     }, 400);
   }, []);
@@ -59,10 +49,7 @@ export default function Customers() {
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
       items = items.filter((item) =>
-        [item.name, item.company, item.email, item.phone, item.country]
-          .join(" ")
-          .toLowerCase()
-          .includes(q)
+        [item.name, item.category].join(" ").toLowerCase().includes(q)
       );
     }
     if (statusFilter !== "all") {
@@ -78,12 +65,48 @@ export default function Customers() {
   const start = (page - 1) * perPage;
   const pageItems = filtered.slice(start, start + perPage);
 
+  // 🟢 Modal Handlers
+  const handleAddService = () => {
+    setEditingItem(null);
+    setShowModal(true);
+  };
+
+  const handleEdit = (item) => {
+    setEditingItem(item);
+    setShowModal(true);
+  };
+
+  const handleDelete = (id) => {
+    if (window.confirm("Are you sure you want to delete this service?")) {
+      setData((prev) => prev.filter((i) => i.id !== id));
+    }
+  };
+
+  const handleSave = (formData) => {
+    if (editingItem) {
+      // Update existing
+      setData((prev) =>
+        prev.map((item) =>
+          item.id === editingItem.id ? { ...item, ...formData } : item
+        )
+      );
+    } else {
+      // Add new
+      const newId = Math.max(...data.map((d) => d.id), 0) + 1;
+      setData((prev) => [...prev, { id: newId, ...formData }]);
+    }
+    setShowModal(false);
+  };
+
   return (
     <>
       <div className="toolbar">
+        <button className="add-btn" onClick={handleAddService}>
+          <FaPlus /> Add Service
+        </button>
         <input
           type="text"
-          placeholder="Search customers..."
+          placeholder="Search services..."
           value={searchTerm}
           onChange={(e) => {
             setSearchTerm(e.target.value);
@@ -107,29 +130,42 @@ export default function Customers() {
         {loading ? (
           <div className="loading">Loading...</div>
         ) : (
-          <table className="customer-table">
+          <table className="service-table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Company</th>
-                <th>Email</th>
-                <th>Phone</th>
-                <th>Country</th>
+                <th>Service Name</th>
+                <th>Category</th>
+                <th>Price</th>
                 <th>Status</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {pageItems.map((item) => (
                 <tr key={item.id}>
                   <td>{item.name}</td>
-                  <td>{item.company}</td>
-                  <td>{item.email}</td>
-                  <td>{item.phone}</td>
-                  <td>{item.country}</td>
+                  <td>{item.category}</td>
+                  <td>${item.price}</td>
                   <td>
                     <span className={`status ${item.status.toLowerCase()}`}>
                       {item.status}
                     </span>
+                  </td>
+                  <td className="actions">
+                    <button
+                      className="edit-btn"
+                      title="Edit"
+                      onClick={() => handleEdit(item)}
+                    >
+                      <FaEdit />
+                    </button>
+                    <button
+                      className="delete-btn"
+                      title="Delete"
+                      onClick={() => handleDelete(item.id)}
+                    >
+                      <FaTrash />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -152,6 +188,96 @@ export default function Customers() {
           Next ›
         </button>
       </div>
+
+      {showModal && (
+        <ServiceModal
+          onClose={() => setShowModal(false)}
+          onSave={handleSave}
+          item={editingItem}
+        />
+      )}
     </>
+  );
+}
+
+// 🟣 Modal Component
+function ServiceModal({ onClose, onSave, item }) {
+  const [formData, setFormData] = useState({
+    name: item?.name || "",
+    category: item?.category || "",
+    price: item?.price || "",
+    status: item?.status || "Active",
+  });
+  const [loading, setLoading] = useState(false);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setTimeout(() => {
+      onSave(formData);
+      setLoading(false);
+    }, 300);
+  };
+
+  return (
+    <div className="profile-modal-overlay" onClick={onClose}>
+      <div className="profile-modal" onClick={(e) => e.stopPropagation()}>
+        <h2>{item ? "Edit Service" : "Add Service"}</h2>
+
+        <form onSubmit={handleSubmit}>
+          <label>Service Name</label>
+          <input
+            type="text"
+            name="name"
+            value={formData.name}
+            onChange={handleChange}
+            required
+          />
+
+          <label>Category</label>
+          <input
+            type="text"
+            name="category"
+            value={formData.category}
+            onChange={handleChange}
+            required
+          />
+
+          <label>Price</label>
+          <input
+            type="number"
+            name="price"
+            value={formData.price}
+            onChange={handleChange}
+            required
+          />
+
+          <label>Status</label>
+          <select name="status" value={formData.status} onChange={handleChange}>
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+          </select>
+
+          <div className="modal-actions">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              className="cancel-btn"
+            >
+              Cancel
+            </button>
+            <button type="submit" disabled={loading} className="save-btn">
+              {loading ? "Saving..." : "Save"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }

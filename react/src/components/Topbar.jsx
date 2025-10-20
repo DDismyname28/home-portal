@@ -8,6 +8,7 @@ const TAB_TITLES = {
   customers: "👥 Customers Management",
   projects: "💼 Projects",
   reports: "📈 Reports",
+  services: "🧰 Services Management", // ✅ Added this line
   settings: "⚙️ Settings",
 };
 

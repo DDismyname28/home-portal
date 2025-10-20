@@ -338,17 +338,21 @@ input[type="checkbox"]:focus {
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
-.customer-table {
+.customer-table,
+.service-table {
   width: 100%;
   border-collapse: collapse;
 }
 .customer-table th,
-.customer-table td {
+.customer-table td,
+.service-table th,
+.service-table td {
   text-align: left;
   padding: 12px 16px;
   border-bottom: 1px solid #eee;
 }
-.customer-table th {
+.customer-table th,
+.service-table th {
   background: #fafafa;
   font-weight: 600;
 }
