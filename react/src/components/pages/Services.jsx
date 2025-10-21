@@ -1,33 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { FaPlus, FaEdit, FaTrash } from "react-icons/fa";
 import "../../App.css";
+import "../../services.css";
 
 export default function Services() {
-  const base = [
-    {
-      id: 1,
-      name: "Aircon Cleaning",
-      category: "Cleaning",
-      price: 80,
-      status: "Active",
-    },
-    {
-      id: 2,
-      name: "Plumbing Repair",
-      category: "Repair",
-      price: 120,
-      status: "Inactive",
-    },
-    {
-      id: 3,
-      name: "Lawn Mowing",
-      category: "Landscaping",
-      price: 60,
-      status: "Active",
-    },
-  ];
-
   const [data, setData] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -37,19 +15,61 @@ export default function Services() {
 
   const perPage = 10;
 
+  // 🟢 Fetch services and categories
   useEffect(() => {
-    setTimeout(() => {
-      setData(base);
-      setLoading(false);
-    }, 400);
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+
+        // Fetch services
+        const servicesRes = await fetch(
+          `${HiiincHomeDashboardData.apiRoot}get-services`,
+          {
+            method: "GET",
+            credentials: "include",
+            headers: {
+              "X-WP-Nonce": HiiincHomeDashboardData.nonce, // ✅ add this
+            },
+          }
+        );
+        const result = await servicesRes.json();
+        if (result.success && Array.isArray(result.data)) {
+          setData(result.data);
+        } else {
+          console.error("Error fetching services:", result.message);
+        }
+
+        // Fetch categories
+        const categoriesRes = await fetch(
+          "/wp-json/wp/v2/service_category?per_page=100"
+        );
+        const categoriesData = await categoriesRes.json();
+        setCategories(
+          categoriesData.map((cat) => ({
+            id: cat.id,
+            name: cat.name,
+          }))
+        );
+      } catch (err) {
+        console.error("Error fetching data:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
   }, []);
 
+  // 🟣 Filter logic
   const filtered = useMemo(() => {
     let items = [...data];
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
       items = items.filter((item) =>
-        [item.name, item.category].join(" ").toLowerCase().includes(q)
+        [item.name, item.category, item.description, item.importantNotes]
+          .join(" ")
+          .toLowerCase()
+          .includes(q)
       );
     }
     if (statusFilter !== "all") {
@@ -65,7 +85,7 @@ export default function Services() {
   const start = (page - 1) * perPage;
   const pageItems = filtered.slice(start, start + perPage);
 
-  // 🟢 Modal Handlers
+  // 🟢 Handlers
   const handleAddService = () => {
     setEditingItem(null);
     setShowModal(true);
@@ -76,26 +96,75 @@ export default function Services() {
     setShowModal(true);
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (window.confirm("Are you sure you want to delete this service?")) {
-      setData((prev) => prev.filter((i) => i.id !== id));
+      try {
+        const res = await fetch(
+          `${HiiincHomeDashboardData.apiRoot}delete-service/${id}`,
+          {
+            method: "DELETE",
+            credentials: "include",
+            headers: {
+              "X-WP-Nonce": HiiincHomeDashboardData.nonce,
+            },
+          }
+        );
+
+        const result = await res.json();
+        if (result.success) {
+          setData((prev) => prev.filter((i) => i.id !== id));
+        } else {
+          console.error("Delete failed:", result.message);
+        }
+      } catch (err) {
+        console.error("Delete failed:", err);
+      }
     }
   };
 
-  const handleSave = (formData) => {
-    if (editingItem) {
-      // Update existing
-      setData((prev) =>
-        prev.map((item) =>
-          item.id === editingItem.id ? { ...item, ...formData } : item
-        )
+  const handleSave = async (formData) => {
+    setLoading(true);
+    try {
+      const payload = editingItem
+        ? { ...formData, id: editingItem.id }
+        : { ...formData, status: "Active" }; // ✅ Set Active when creating
+
+      const response = await fetch(
+        `${HiiincHomeDashboardData.apiRoot}create-service`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-WP-Nonce": HiiincHomeDashboardData.nonce,
+          },
+          credentials: "include",
+          body: JSON.stringify(payload),
+        }
       );
-    } else {
-      // Add new
-      const newId = Math.max(...data.map((d) => d.id), 0) + 1;
-      setData((prev) => [...prev, { id: newId, ...formData }]);
+
+      const result = await response.json();
+      if (result.success) {
+        if (editingItem) {
+          setData((prev) =>
+            prev.map((i) =>
+              i.id === editingItem.id ? { ...i, ...formData } : i
+            )
+          );
+        } else {
+          setData((prev) => [
+            ...prev,
+            { ...formData, id: result.id, status: "Active" },
+          ]);
+        }
+        setShowModal(false);
+      } else {
+        console.error("Error saving service:", result.message);
+      }
+    } catch (err) {
+      console.error("An error occurred while saving the service:", err);
+    } finally {
+      setLoading(false);
     }
-    setShowModal(false);
   };
 
   return (
@@ -129,6 +198,8 @@ export default function Services() {
       <div className="table-wrapper">
         {loading ? (
           <div className="loading">Loading...</div>
+        ) : pageItems.length === 0 ? (
+          <div className="no-data">No services found.</div>
         ) : (
           <table className="service-table">
             <thead>
@@ -136,6 +207,8 @@ export default function Services() {
                 <th>Service Name</th>
                 <th>Category</th>
                 <th>Price</th>
+                <th>Description</th>
+                <th>Important Notes</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -146,6 +219,12 @@ export default function Services() {
                   <td>{item.name}</td>
                   <td>{item.category}</td>
                   <td>${item.price}</td>
+                  <td className="truncate" title={item.description}>
+                    {item.description}
+                  </td>
+                  <td className="truncate" title={item.importantNotes}>
+                    {item.importantNotes}
+                  </td>
                   <td>
                     <span className={`status ${item.status.toLowerCase()}`}>
                       {item.status}
@@ -154,14 +233,12 @@ export default function Services() {
                   <td className="actions">
                     <button
                       className="edit-btn"
-                      title="Edit"
                       onClick={() => handleEdit(item)}
                     >
                       <FaEdit />
                     </button>
                     <button
                       className="delete-btn"
-                      title="Delete"
                       onClick={() => handleDelete(item.id)}
                     >
                       <FaTrash />
@@ -194,19 +271,21 @@ export default function Services() {
           onClose={() => setShowModal(false)}
           onSave={handleSave}
           item={editingItem}
+          categories={categories}
         />
       )}
     </>
   );
 }
 
-// 🟣 Modal Component
-function ServiceModal({ onClose, onSave, item }) {
+function ServiceModal({ onClose, onSave, item, categories }) {
   const [formData, setFormData] = useState({
     name: item?.name || "",
     category: item?.category || "",
     price: item?.price || "",
-    status: item?.status || "Active",
+    description: item?.description || "",
+    importantNotes: item?.importantNotes || "",
+    status: item?.status || "Active", // ✅ Default Active for new services
   });
   const [loading, setLoading] = useState(false);
 
@@ -215,13 +294,14 @@ function ServiceModal({ onClose, onSave, item }) {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => {
-      onSave(formData);
+    try {
+      await onSave(formData);
+    } finally {
       setLoading(false);
-    }, 300);
+    }
   };
 
   return (
@@ -229,7 +309,14 @@ function ServiceModal({ onClose, onSave, item }) {
       <div className="profile-modal" onClick={(e) => e.stopPropagation()}>
         <h2>{item ? "Edit Service" : "Add Service"}</h2>
 
-        <form onSubmit={handleSubmit}>
+        {loading && (
+          <div className="loading-overlay">
+            <div className="loader"></div>
+            <p>Saving service...</p>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} style={{ opacity: loading ? 0.6 : 1 }}>
           <label>Service Name</label>
           <input
             type="text"
@@ -240,13 +327,19 @@ function ServiceModal({ onClose, onSave, item }) {
           />
 
           <label>Category</label>
-          <input
-            type="text"
+          <select
             name="category"
             value={formData.category}
             onChange={handleChange}
             required
-          />
+          >
+            <option value="">Select a category</option>
+            {categories.map((cat) => (
+              <option key={cat.id} value={cat.name}>
+                {cat.name}
+              </option>
+            ))}
+          </select>
 
           <label>Price</label>
           <input
@@ -257,22 +350,41 @@ function ServiceModal({ onClose, onSave, item }) {
             required
           />
 
-          <label>Status</label>
-          <select name="status" value={formData.status} onChange={handleChange}>
-            <option value="Active">Active</option>
-            <option value="Inactive">Inactive</option>
-          </select>
+          <label>Description</label>
+          <textarea
+            name="description"
+            value={formData.description}
+            onChange={handleChange}
+            rows={3}
+          />
+
+          <label>Important Notes</label>
+          <textarea
+            name="importantNotes"
+            value={formData.importantNotes}
+            onChange={handleChange}
+            rows={3}
+          />
+
+          {item && (
+            <>
+              <label>Status</label>
+              <select
+                name="status"
+                value={formData.status}
+                onChange={handleChange}
+              >
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+              </select>
+            </>
+          )}
 
           <div className="modal-actions">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              className="cancel-btn"
-            >
+            <button type="button" onClick={onClose} className="cancel-btn">
               Cancel
             </button>
-            <button type="submit" disabled={loading} className="save-btn">
+            <button type="submit" className="save-btn" disabled={loading}>
               {loading ? "Saving..." : "Save"}
             </button>
           </div>

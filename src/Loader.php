@@ -9,6 +9,7 @@ use HiiincHomePortalApp\Includes\SigninHandler;
 use HiiincHomePortalApp\Includes\CustomPostTypes;
 use HiiincHomePortalApp\Includes\Dashboard;
 use HiiincHomePortalApp\Includes\ProfileHandler;
+use HiiincHomePortalApp\Includes\ServiceHandler;
 
 class Loader {
     public function __construct() {
@@ -19,5 +20,6 @@ class Loader {
         new CustomPostTypes();
         new Dashboard();
         new ProfileHandler();
+        new ServiceHandler();
     }
 }
