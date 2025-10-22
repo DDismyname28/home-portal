@@ -1,0 +1,32 @@
+.no-providers-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 20px;
+  margin: 15px 0;
+  text-align: center;
+  color: #374151;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.no-providers-box h4 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-top: 10px;
+  color: #1f2937;
+}
+
+.no-providers-box p {
+  font-size: 0.9rem;
+  color: #6b7280;
+  margin-top: 5px;
+}
+
+.no-providers-icon {
+  width: 60px;
+  opacity: 0.8;
+  margin-bottom: 10px;
+}
