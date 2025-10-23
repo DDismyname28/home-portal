@@ -2,16 +2,18 @@
 
 namespace HiiincHomePortalApp\Includes;
 
+if (!defined('ABSPATH')) exit;
+
 class CustomPostTypes {
 
     public function __construct() {
         add_action('init', [$this, 'register_services_cpt']);
-        add_action('init', [$this, 'register_service_requests_cpt']);
+        add_action('init', [$this, 'register_requests_cpt']);
+        add_action('init', [$this, 'register_request_category_taxonomy']);
     }
 
     /**
      * Register the Services CPT
-     * Providers add/edit services they offer
      */
     public function register_services_cpt() {
         $labels = [
@@ -26,8 +28,8 @@ class CustomPostTypes {
         $args = [
             'label' => 'Services',
             'labels' => $labels,
-            'public' => false, // not public
-            'show_ui' => true, // visible in admin dashboard
+            'public' => false,
+            'show_ui' => true,
             'supports' => ['title', 'editor'],
             'capability_type' => 'post',
             'map_meta_cap' => true,
@@ -38,10 +40,9 @@ class CustomPostTypes {
     }
 
     /**
-     * Register the Service Requests CPT
-     * Members send requests to providers for their services
+     * Register the Vendor Requests CPT
      */
-    public function register_service_requests_cpt() {
+    public function register_requests_cpt() {
         $labels = [
             'name' => 'Service Requests',
             'singular_name' => 'Service Request',
@@ -62,6 +63,18 @@ class CustomPostTypes {
             'menu_icon' => 'dashicons-email',
         ];
 
-        register_post_type('service_request', $args);
+        register_post_type('vendor_request', $args);
+    }
+
+    /**
+     * Register Request Category Taxonomy
+     */
+    public function register_request_category_taxonomy() {
+        register_taxonomy('request_category', 'vendor_request', [
+            'label' => 'Request Categories',
+            'rewrite' => ['slug' => 'request-category'],
+            'hierarchical' => true,
+            'show_admin_column' => true,
+        ]);
     }
 }

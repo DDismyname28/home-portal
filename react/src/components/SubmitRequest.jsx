@@ -13,32 +13,31 @@ export default function Requests() {
   const [editingItem, setEditingItem] = useState(null);
   const perPage = 10;
 
-  useEffect(() => {
-    const fetchRequests = async () => {
-      try {
-        setLoading(true);
-        const res = await fetch(
-          `${HiiincHomeDashboardData.apiRoot}get-requests`,
-          {
-            method: "GET",
-            credentials: "include",
-            headers: {
-              "X-WP-Nonce": HiiincHomeDashboardData.nonce,
-            },
-          }
-        );
-        const result = await res.json();
-        if (result.success && Array.isArray(result.data)) {
-          setData(result.data);
-        } else {
-          console.error("Error fetching requests:", result.message);
+  const fetchRequests = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(
+        `${HiiincHomeDashboardData.apiRoot}get-requests`,
+        {
+          method: "GET",
+          credentials: "include",
+          headers: { "X-WP-Nonce": HiiincHomeDashboardData.nonce },
         }
-      } catch (err) {
-        console.error("Error fetching requests:", err);
-      } finally {
-        setLoading(false);
+      );
+      const result = await res.json();
+      if (result.success && Array.isArray(result.data)) {
+        setData(result.data);
+      } else {
+        console.error("Error fetching requests:", result.message);
       }
-    };
+    } catch (err) {
+      console.error("Error fetching requests:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchRequests();
   }, []);
 
@@ -84,9 +83,7 @@ export default function Requests() {
           {
             method: "DELETE",
             credentials: "include",
-            headers: {
-              "X-WP-Nonce": HiiincHomeDashboardData.nonce,
-            },
+            headers: { "X-WP-Nonce": HiiincHomeDashboardData.nonce },
           }
         );
         const result = await res.json();
@@ -101,7 +98,7 @@ export default function Requests() {
     }
   };
 
-  const handleSave = async (formData) => {
+  const handleSave = async (formData, resetForm) => {
     setLoading(true);
     try {
       const isEditing = !!editingItem;
@@ -130,19 +127,8 @@ export default function Requests() {
       const result = await res.json();
 
       if (result.success) {
-        if (isEditing) {
-          setData((prev) =>
-            prev.map((i) =>
-              i.id === editingItem.id ? { ...i, ...formData } : i
-            )
-          );
-        } else {
-          setData((prev) => [
-            ...prev,
-            { ...formData, id: result.id, status: "Pending" },
-          ]);
-        }
-        setShowModal(false);
+        await fetchRequests();
+        resetForm();
       } else {
         console.error("Error saving request:", result.message);
       }
@@ -269,7 +255,10 @@ export default function Requests() {
       {showModal && (
         <RequestModal
           onClose={() => setShowModal(false)}
-          onSave={handleSave}
+          onSave={async (formData, resetForm) => {
+            await handleSave(formData, resetForm);
+            setShowModal(false); // auto close after success
+          }}
           item={editingItem}
         />
       )}
@@ -277,43 +266,34 @@ export default function Requests() {
   );
 }
 
-// 🔵 MODAL COMPONENT
 function RequestModal({ onClose, onSave, item }) {
-  const serviceCategories = [
-    "House washing",
-    "Roof soft wash",
-    "Driveway sealing / patio cleaning",
-    "Window cleaning",
-    "Gutter cleaning",
-    "HVAC services",
-    "Pool care",
-    "Pressure washing",
-    "Landscaping",
-    "Pest control",
-    "Others",
-  ];
-
   const [formData, setFormData] = useState({
     category: item?.category || "",
+    service_id: item?.service_id || "",
+    provider_id: item?.provider_id || "",
     provider: item?.provider || "",
     timePreference: item?.timePreference || "AM",
     date: item?.date || "",
     description: item?.description || "",
-    photos: item?.photos || [],
+    photos: [],
     status: item?.status || "Pending",
   });
 
-  const [providers, setProviders] = useState([]);
+  const [previewPhotos, setPreviewPhotos] = useState(item?.photos || []);
+  const [services, setServices] = useState([]);
+  const [selectedService, setSelectedService] = useState(null);
   const [loading, setLoading] = useState(false);
   const [noProvidersMessage, setNoProvidersMessage] = useState("");
 
   useEffect(() => {
-    const fetchProviders = async () => {
+    const fetchServices = async () => {
       if (!formData.category) {
-        setProviders([]);
+        setServices([]);
         setNoProvidersMessage("");
         return;
       }
+
+      setLoading(true);
       try {
         const res = await fetch(
           `${
@@ -329,65 +309,94 @@ function RequestModal({ onClose, onSave, item }) {
         const result = await res.json();
         if (result.success) {
           if (result.data.length > 0) {
-            setProviders(result.data);
+            setServices(result.data);
             setNoProvidersMessage("");
           } else {
-            setProviders([]);
+            setServices([]);
             setNoProvidersMessage("No providers available for this category.");
           }
-        } else {
-          console.error("Failed to fetch providers:", result.message);
         }
       } catch (err) {
         console.error("Error fetching providers:", err);
+      } finally {
+        setLoading(false);
       }
     };
-    fetchProviders();
+
+    fetchServices();
   }, [formData.category]);
 
-  // ✅ UPDATED: Append multiple files instead of replacing
   const handleChange = (e) => {
     const { name, value, files } = e.target;
+
     if (name === "photos") {
-      const filesArr = Array.from(files);
+      const selectedFiles = Array.from(files);
       setFormData((prev) => ({
         ...prev,
-        photos: [...prev.photos, ...filesArr], // append multiple
+        photos: [...prev.photos, ...selectedFiles],
+      }));
+      const newPreviews = selectedFiles.map((f) => URL.createObjectURL(f));
+      setPreviewPhotos((prev) => [...prev, ...newPreviews]);
+    } else if (name === "service_id") {
+      const selected = services.find(
+        (s) => String(s.service_id) === String(value)
+      );
+      setSelectedService(selected || null);
+      setFormData((prev) => ({
+        ...prev,
+        service_id: selected?.service_id || "",
+        provider_id: selected?.provider_id || "",
+        provider: selected?.provider_name || "",
       }));
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
   };
 
-  // ✅ Remove specific photo preview
-  const handleRemovePhoto = (index) => {
+  const removePhoto = (index) => {
+    setPreviewPhotos((prev) => prev.filter((_, i) => i !== index));
     setFormData((prev) => ({
       ...prev,
       photos: prev.photos.filter((_, i) => i !== index),
     }));
   };
 
+  const resetForm = () => {
+    setFormData({
+      category: "",
+      service_id: "",
+      provider_id: "",
+      provider: "",
+      timePreference: "AM",
+      date: "",
+      description: "",
+      photos: [],
+      status: "Pending",
+    });
+    setPreviewPhotos([]);
+    setSelectedService(null);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    try {
-      await onSave(formData);
-    } finally {
-      setLoading(false);
-    }
+    await onSave(formData, resetForm);
+    setLoading(false);
   };
 
   return (
     <div className="profile-modal-overlay" onClick={onClose}>
       <div className="profile-modal" onClick={(e) => e.stopPropagation()}>
-        <h2>{item ? "Edit Request" : "Create Request"}</h2>
         {loading && (
           <div className="loading-overlay">
-            <div className="loader"></div>
-            <p>Saving request...</p>
+            <div className="loading-spinner"></div>
+            <p>Loading...</p>
           </div>
         )}
-        <form onSubmit={handleSubmit} style={{ opacity: loading ? 0.6 : 1 }}>
+
+        <h2>{item ? "Edit Request" : "Create Request"}</h2>
+
+        <form onSubmit={handleSubmit}>
           <label>Service Category</label>
           <select
             name="category"
@@ -396,40 +405,84 @@ function RequestModal({ onClose, onSave, item }) {
             required
           >
             <option value="">Select a category</option>
-            {serviceCategories.map((cat) => (
+            {[
+              "House washing",
+              "Roof soft wash",
+              "Driveway sealing / patio cleaning",
+              "Window cleaning",
+              "Gutter cleaning",
+              "HVAC services",
+              "Pool care",
+              "Pressure washing",
+              "Landscaping",
+              "Pest control",
+              "Others",
+            ].map((cat) => (
               <option key={cat} value={cat}>
                 {cat}
               </option>
             ))}
           </select>
 
-          {providers.length > 0 && (
+          {services.length > 0 && (
             <>
-              <label>Available Providers</label>
+              <label>Available Providers / Services</label>
               <select
-                name="provider"
-                value={formData.provider}
+                name="service_id"
+                value={formData.service_id}
                 onChange={handleChange}
                 required
               >
-                <option value="">Select a provider</option>
-                {providers.map((p) => (
-                  <option key={p.id} value={p.name}>
-                    {p.name}
+                <option value="">Select a provider / service</option>
+                {services.map((s) => (
+                  <option key={s.service_id} value={s.service_id}>
+                    {s.provider_name} — {s.service_title}{" "}
+                    {s.service_price ? `(${s.service_price})` : ""}
                   </option>
                 ))}
               </select>
+
+              {selectedService && (
+                <div
+                  className="service-card"
+                  style={{
+                    border: "1px solid #ddd",
+                    borderRadius: "8px",
+                    padding: "15px",
+                    marginTop: "10px",
+                    background: "#f9f9f9",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                  }}
+                >
+                  <small
+                    style={{
+                      margin: "0 0 8px",
+                      color: "#333",
+                      textAlign: "center",
+                      display: "block",
+                    }}
+                  >
+                    <strong>{selectedService.service_title}</strong>
+                  </small>
+                  <small style={{ margin: "4px 0" }}>
+                    <strong>Provider:</strong> {selectedService.provider_name}
+                  </small>
+                  <br />
+                  <small style={{ margin: "4px 0" }}>
+                    <strong>Price:</strong> {selectedService.service_price}
+                  </small>
+                  <br />
+                  <small style={{ margin: "6px 0" }}>
+                    <strong>Description: </strong>
+                    {selectedService.service_description}
+                  </small>
+                </div>
+              )}
             </>
           )}
 
           {noProvidersMessage && (
             <div className="no-providers-box">
-              <img
-                src="https://cdn-icons-png.flaticon.com/512/4076/4076505.png"
-                alt="no providers"
-                style={{ width: "60px", opacity: 0.8, marginBottom: "8px" }}
-              />
-              <h4>No Providers Available</h4>
               <p>{noProvidersMessage}</p>
             </div>
           )}
@@ -473,84 +526,83 @@ function RequestModal({ onClose, onSave, item }) {
             value={formData.description}
             onChange={handleChange}
             rows={3}
-            placeholder="Describe your service request..."
           />
 
           <label>Upload Photos</label>
           <input
             type="file"
             name="photos"
-            multiple
             accept="image/*"
+            multiple
             onChange={handleChange}
           />
 
-          {/* ✅ PREVIEW WITH REMOVE BUTTONS */}
-          <div className="photo-preview">
-            {formData.photos.map((file, i) => (
-              <div
-                key={i}
-                style={{
-                  display: "inline-block",
-                  position: "relative",
-                  marginRight: 8,
-                }}
-              >
-                <img
-                  src={file instanceof File ? URL.createObjectURL(file) : file}
-                  alt="preview"
+          {previewPhotos.length > 0 && (
+            <div
+              className="preview-container"
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))",
+                gap: "10px",
+                marginTop: "10px",
+              }}
+            >
+              {previewPhotos.map((url, i) => (
+                <div
+                  key={i}
+                  className="preview-item"
                   style={{
-                    width: 60,
-                    height: 60,
-                    objectFit: "cover",
-                    borderRadius: 5,
-                    border: "1px solid #ccc",
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => handleRemovePhoto(i)}
-                  style={{
-                    position: "absolute",
-                    top: -6,
-                    right: -6,
-                    background: "#ff4444",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: "50%",
-                    width: 18,
-                    height: 18,
-                    fontSize: 12,
-                    cursor: "pointer",
+                    position: "relative",
+                    width: "80px",
+                    height: "80px",
                   }}
                 >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-
-          {item && (
-            <>
-              <label>Status</label>
-              <select
-                name="status"
-                value={formData.status}
-                onChange={handleChange}
-              >
-                <option value="Pending">Pending</option>
-                <option value="Approved">Approved</option>
-                <option value="Declined">Declined</option>
-              </select>
-            </>
+                  <img
+                    src={url}
+                    alt={`preview-${i}`}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                      borderRadius: "6px",
+                      border: "1px solid #ddd",
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="remove-btn"
+                    onClick={() => removePhoto(i)}
+                    style={{
+                      position: "absolute",
+                      top: "-6px",
+                      right: "-6px",
+                      background: "#f33",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "50%",
+                      width: "20px",
+                      height: "20px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
           )}
 
           <div className="modal-actions">
-            <button type="button" onClick={onClose} className="cancel-btn">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              className="cancel-btn"
+            >
               Cancel
             </button>
-            <button type="submit" className="save-btn" disabled={loading}>
-              {loading ? "Submitting..." : "Submit Request"}
+            <button type="submit" disabled={loading} className="save-btn">
+              {loading ? "Submitting..." : "Submit"}
             </button>
           </div>
         </form>
