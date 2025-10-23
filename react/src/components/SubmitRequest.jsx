@@ -283,6 +283,7 @@ function RequestModal({ onClose, onSave, item }) {
   const [services, setServices] = useState([]);
   const [selectedService, setSelectedService] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [dropdownLoading, setDropdownLoading] = useState(false);
   const [noProvidersMessage, setNoProvidersMessage] = useState("");
 
   useEffect(() => {
@@ -293,7 +294,7 @@ function RequestModal({ onClose, onSave, item }) {
         return;
       }
 
-      setLoading(true);
+      setDropdownLoading(true);
       try {
         const res = await fetch(
           `${
@@ -319,7 +320,7 @@ function RequestModal({ onClose, onSave, item }) {
       } catch (err) {
         console.error("Error fetching providers:", err);
       } finally {
-        setLoading(false);
+        setDropdownLoading(false);
       }
     };
 
@@ -390,7 +391,6 @@ function RequestModal({ onClose, onSave, item }) {
         {loading && (
           <div className="loading-overlay">
             <div className="loading-spinner"></div>
-            <p>Loading...</p>
           </div>
         )}
 
@@ -424,7 +424,13 @@ function RequestModal({ onClose, onSave, item }) {
             ))}
           </select>
 
-          {services.length > 0 && (
+          {dropdownLoading && (
+            <div className="dropdown-loading">
+              <div className="loading-spinner small"></div>
+            </div>
+          )}
+
+          {services.length > 0 && !dropdownLoading && (
             <>
               <label>Available Providers / Services</label>
               <select
