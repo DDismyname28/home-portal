@@ -28,7 +28,7 @@ export default function Requests() {
       if (result.success && Array.isArray(result.data)) {
         setData(result.data);
       } else {
-        console.error("Error fetching requests:", result.message);
+        console.error("Error fetching requests:", result && result.message);
       }
     } catch (err) {
       console.error("Error fetching requests:", err);
@@ -54,14 +54,15 @@ export default function Requests() {
     }
     if (statusFilter !== "all") {
       items = items.filter(
-        (item) => item.status.toLowerCase() === statusFilter.toLowerCase()
+        (item) =>
+          String(item.status).toLowerCase() === statusFilter.toLowerCase()
       );
     }
     return items;
   }, [data, searchTerm, statusFilter]);
 
   const total = filtered.length;
-  const totalPages = Math.ceil(total / perPage);
+  const totalPages = Math.max(1, Math.ceil(total / perPage));
   const start = (page - 1) * perPage;
   const pageItems = filtered.slice(start, start + perPage);
 
@@ -86,18 +87,33 @@ export default function Requests() {
             headers: { "X-WP-Nonce": HiiincHomeDashboardData.nonce },
           }
         );
-        const result = await res.json();
+
+        // Try parse JSON but fallback to text for debugging
+        const text = await res.text();
+        let result;
+        try {
+          result = JSON.parse(text);
+        } catch (e) {
+          console.error("Non-JSON delete response:", text);
+          throw new Error(
+            "Server returned non-JSON response. Check server logs (console)."
+          );
+        }
+
         if (result.success) {
           setData((prev) => prev.filter((i) => i.id !== id));
         } else {
           console.error("Delete failed:", result.message);
+          alert("Delete failed: " + (result.message || "Unknown error"));
         }
       } catch (err) {
         console.error("Delete failed:", err);
+        alert("Delete failed: " + err.message);
       }
     }
   };
 
+  // Robust save: handles non-JSON responses and returns a boolean success
   const handleSave = async (formData, resetForm) => {
     setLoading(true);
     try {
@@ -111,7 +127,8 @@ export default function Requests() {
             if (file instanceof File) body.append("photos[]", file);
           });
         } else {
-          body.append(key, value);
+          // Ensure we append empty strings instead of undefined for required fields
+          body.append(key, value == null ? "" : value);
         }
       });
 
@@ -124,16 +141,44 @@ export default function Requests() {
         body,
       });
 
-      const result = await res.json();
+      const text = await res.text(); // always read text first
+      // Helpful console output to debug server-side issues
+      if (!text) {
+        console.warn("Empty response from server on save");
+      }
+
+      let result;
+      try {
+        result = JSON.parse(text);
+      } catch (parseErr) {
+        // Server returned HTML (often PHP error/notice). Show snippet and log full text.
+        console.error("Server returned non-JSON response on save:", text);
+        const snippet = text.replace(/<[^>]+>/g, " ").slice(0, 500); // strip tags for alert
+        throw new Error(
+          "Server returned non-JSON response. Example snippet (first 500 chars):\n" +
+            snippet
+        );
+      }
 
       if (result.success) {
-        await fetchRequests();
         resetForm();
+        await fetchRequests(); // refresh list same as delete
+        setShowModal(false); // close modal after we successfully refreshed
+        return true;
       } else {
         console.error("Error saving request:", result.message);
+        // If backend returned a message, show it so user knows what's wrong
+        alert("Error saving request: " + (result.message || "Unknown error"));
+        return false;
       }
     } catch (err) {
+      // Show friendly alert to user and log details to console for debugging
       console.error("An error occurred while saving the request:", err);
+      alert(
+        "An error occurred while saving the request. Check console for details.\n\n" +
+          err.message
+      );
+      return false;
     } finally {
       setLoading(false);
     }
@@ -212,7 +257,9 @@ export default function Requests() {
                     )}
                   </td>
                   <td>
-                    <span className={`status ${item.status.toLowerCase()}`}>
+                    <span
+                      className={`status ${String(item.status).toLowerCase()}`}
+                    >
                       {item.status}
                     </span>
                   </td>
@@ -254,11 +301,11 @@ export default function Requests() {
 
       {showModal && (
         <RequestModal
-          onClose={() => setShowModal(false)}
-          onSave={async (formData, resetForm) => {
-            await handleSave(formData, resetForm);
-            setShowModal(false); // auto close after success
+          onClose={() => {
+            // prevent closing while saving
+            if (!loading) setShowModal(false);
           }}
+          onSave={handleSave}
           item={editingItem}
         />
       )}
@@ -307,7 +354,19 @@ function RequestModal({ onClose, onSave, item }) {
             credentials: "include",
           }
         );
-        const result = await res.json();
+        const text = await res.text();
+        let result;
+        try {
+          result = JSON.parse(text);
+        } catch (e) {
+          console.error("Non-JSON providers response:", text);
+          setServices([]);
+          setNoProvidersMessage(
+            "Error loading providers (server returned invalid response)."
+          );
+          return;
+        }
+
         if (result.success) {
           if (result.data.length > 0) {
             setServices(result.data);
@@ -316,15 +375,21 @@ function RequestModal({ onClose, onSave, item }) {
             setServices([]);
             setNoProvidersMessage("No providers available for this category.");
           }
+        } else {
+          setServices([]);
+          setNoProvidersMessage(result.message || "Failed to load providers.");
         }
       } catch (err) {
         console.error("Error fetching providers:", err);
+        setServices([]);
+        setNoProvidersMessage("Error fetching providers.");
       } finally {
         setDropdownLoading(false);
       }
     };
 
     fetchServices();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.category]);
 
   const handleChange = (e) => {
@@ -381,12 +446,28 @@ function RequestModal({ onClose, onSave, item }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    await onSave(formData, resetForm);
-    setLoading(false);
+    try {
+      const success = await onSave(formData, resetForm);
+      // onSave will close the modal on success (parent handles setShowModal),
+      // but if onSave returns false, keep modal open and allow retry
+      if (!success) {
+        // keep modal open - user already alerted in onSave
+      }
+    } catch (err) {
+      console.error("Error in modal submit:", err);
+      alert("An error occurred while submitting. Check console for details.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="profile-modal-overlay" onClick={onClose}>
+    <div
+      className="profile-modal-overlay"
+      onClick={() => {
+        if (!loading) onClose();
+      }}
+    >
       <div className="profile-modal" onClick={(e) => e.stopPropagation()}>
         {loading && (
           <div className="loading-overlay">
@@ -601,7 +682,7 @@ function RequestModal({ onClose, onSave, item }) {
           <div className="modal-actions">
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => !loading && onClose()}
               disabled={loading}
               className="cancel-btn"
             >
