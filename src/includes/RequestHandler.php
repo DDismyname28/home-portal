@@ -37,6 +37,12 @@ class RequestHandler {
             'callback' => [$this, 'get_vendors_by_category'],
             'permission_callback' => [$this, 'check_user_permission']
         ]);
+
+        register_rest_route('home-portal/v1', '/get-vendor-requests', [
+            'methods' => 'GET',
+            'callback' => [$this, 'get_vendor_requests'],
+            'permission_callback' => [$this, 'check_user_permission']
+        ]);
     }
 
     /**
@@ -312,6 +318,66 @@ class RequestHandler {
         return rest_ensure_response([
             'success' => true,
             'data' => $services,
+        ]);
+    }
+
+    /**
+     * Get all vendor requests assigned to the current logged-in provider
+     */
+    public function get_vendor_requests() {
+        $user_id = get_current_user_id();
+        $user = get_userdata($user_id);
+
+        if (!$user || !in_array('local_provider', (array) $user->roles)) {
+            return rest_ensure_response([
+                'success' => false,
+                'message' => 'Only local providers can access vendor requests.'
+            ]);
+        }
+
+        global $wpdb;
+        $table_posts = $wpdb->posts;
+        $table_meta  = $wpdb->postmeta;
+
+        $results = $wpdb->get_results(
+            $wpdb->prepare("
+            SELECT p.ID, p.post_author, p.post_date,
+                   MAX(CASE WHEN pm.meta_key = 'provider' THEN pm.meta_value END) AS provider,
+                   MAX(CASE WHEN pm.meta_key = 'description' THEN pm.meta_value END) AS description,
+                   MAX(CASE WHEN pm.meta_key = 'status' THEN pm.meta_value END) AS status
+            FROM {$table_posts} AS p
+            INNER JOIN {$table_meta} AS pm ON p.ID = pm.post_id
+            WHERE p.post_type = 'vendor_request'
+              AND p.post_status IN ('publish', 'draft')
+              AND p.ID IN (
+                  SELECT post_id FROM {$table_meta}
+                  WHERE meta_key = 'provider'
+                  AND (meta_value = %s OR meta_value = %d)
+              )
+            GROUP BY p.ID
+            ORDER BY p.post_date DESC
+        ", $user->user_login, $user_id),
+            ARRAY_A
+        );
+
+        $data = [];
+        foreach ($results as $row) {
+            $requester = get_userdata($row['post_author']);
+            $categories = wp_get_post_terms($row['ID'], 'request_category', ['fields' => 'names']);
+
+            $data[] = [
+                'id'          => intval($row['ID']),
+                'requester'   => $requester ? $requester->display_name : 'Unknown',
+                'email'       => $requester ? $requester->user_email : '',
+                'category'    => implode(', ', $categories) ?: 'N/A',
+                'description' => $row['description'] ?: '',
+                'status'      => $row['status'] ?: 'Pending',
+            ];
+        }
+
+        return rest_ensure_response([
+            'success' => true,
+            'data' => $data
         ]);
     }
 }
