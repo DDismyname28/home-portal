@@ -158,10 +158,10 @@ export default function Dashboard() {
 
         <section className="content-section p-4">{renderContent()}</section>
 
-        <div className="debug-panel p-4 bg-gray-100 mt-4">
+        {/* <div className="debug-panel p-4 bg-gray-100 mt-4">
           <h3>Debug: User Meta</h3>
           <pre>{JSON.stringify(user?.meta, null, 2)}</pre>
-        </div>
+        </div> */}
       </main>
 
       {showProfile && (

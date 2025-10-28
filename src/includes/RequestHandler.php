@@ -43,6 +43,12 @@ class RequestHandler {
             'callback' => [$this, 'get_vendor_requests'],
             'permission_callback' => [$this, 'check_user_permission']
         ]);
+
+        register_rest_route('home-portal/v1', '/update-vendor-request', [
+            'methods'  => 'POST',
+            'callback' => [$this, 'update_vendor_request'],
+            'permission_callback' => '__return_true',
+        ]);
     }
 
     /**
@@ -378,6 +384,64 @@ class RequestHandler {
         return rest_ensure_response([
             'success' => true,
             'data' => $data
+        ]);
+    }
+
+    public function update_vendor_request($request) {
+        global $wpdb;
+        $table_meta = $wpdb->postmeta;
+
+        $request_id  = intval($request->get_param('id'));
+        $status      = sanitize_text_field($request->get_param('status'));
+        $description = sanitize_textarea_field($request->get_param('description'));
+
+        // Validate
+        if (!$request_id) {
+            return rest_ensure_response([
+                'success' => false,
+                'message' => 'Invalid request ID.'
+            ]);
+        }
+
+        // Check current user permission
+        $user_id = get_current_user_id();
+        $user = get_userdata($user_id);
+
+        if (!$user || !in_array('local_provider', (array) $user->roles)) {
+            return rest_ensure_response([
+                'success' => false,
+                'message' => 'You are not allowed to update this request.'
+            ]);
+        }
+
+        // Ensure this request belongs to this provider
+        $provider_match = $wpdb->get_var($wpdb->prepare("
+        SELECT COUNT(*) FROM {$table_meta}
+        WHERE post_id = %d
+          AND meta_key = 'provider'
+          AND (meta_value = %s OR meta_value = %d)
+    ", $request_id, $user->user_login, $user_id));
+
+        if (!$provider_match) {
+            return rest_ensure_response([
+                'success' => false,
+                'message' => 'You are not the assigned provider for this request.'
+            ]);
+        }
+
+        // Update description
+        if (!empty($description)) {
+            update_post_meta($request_id, 'description', $description);
+        }
+
+        // Update status
+        if (!empty($status)) {
+            update_post_meta($request_id, 'status', $status);
+        }
+
+        return rest_ensure_response([
+            'success' => true,
+            'message' => 'Request updated successfully.'
         ]);
     }
 }
