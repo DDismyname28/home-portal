@@ -91,21 +91,27 @@ class RequestHandler {
             $photos = get_post_meta($post->ID, 'photos', true);
             $photos = is_array($photos) ? $photos : [];
             $history = get_post_meta($post->ID, 'request_history', true);
+
+            // Use schedule_date if set, otherwise fallback to post_date
+            $schedule_date = get_post_meta($post->ID, 'schedule_date', true);
+            $date = $schedule_date ? $schedule_date : $post->post_date;
+
             $requests[] = [
                 'id' => $post->ID,
                 'category' => implode(', ', $categories),
                 'provider' => get_post_meta($post->ID, 'provider', true),
                 'description' => get_post_meta($post->ID, 'description', true),
-                'date' => get_post_meta($post->ID, 'schedule_date', true),
+                'date' => $date, // always returns a valid date string
                 'timePreference' => get_post_meta($post->ID, 'schedule_period', true),
                 'status' => get_post_meta($post->ID, 'status', true) ?: 'Pending',
                 'photos' => array_map('wp_get_attachment_url', $photos),
-                'history'     => is_array($history) ? $history : [], // 🟢 Add this line
+                'history' => is_array($history) ? $history : [],
             ];
         }
 
         return rest_ensure_response(['success' => true, 'data' => $requests]);
     }
+
 
     /**
      * Create or update a service request
