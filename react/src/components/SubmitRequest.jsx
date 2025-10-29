@@ -168,10 +168,11 @@ export default function Requests() {
               <tr>
                 <th>Category</th>
                 <th>Provider</th>
-                <th>Time</th>
-                <th>Date</th>
+                <th>Preffered Time</th>
+                <th>Scheduled Date</th>
                 <th>Description</th>
                 <th>Photos</th>
+                <th>Job History</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -198,6 +199,20 @@ export default function Requests() {
                       ))
                     ) : (
                       <span>No photos</span>
+                    )}
+                  </td>
+                  <td>
+                    {item.history && item.history.length > 0 ? (
+                      <ul className="history-list">
+                        {item.history.map((h, i) => (
+                          <li key={i}>
+                            <strong>{h.date}</strong> — {h.note}{" "}
+                            <em>by {h.author}</em>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <span>No history</span>
                     )}
                   </td>
                   <td>

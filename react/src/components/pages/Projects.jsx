@@ -252,8 +252,8 @@ function RequestModal({ item, onClose, onSave }) {
             value={formData.requester}
             onChange={handleChange}
             required
+            readOnly
           />
-
           <label>Category</label>
           <input
             type="text"
@@ -261,8 +261,8 @@ function RequestModal({ item, onClose, onSave }) {
             value={formData.category}
             onChange={handleChange}
             required
+            readOnly
           />
-
           <label>Email</label>
           <input
             type="email"
@@ -270,22 +270,105 @@ function RequestModal({ item, onClose, onSave }) {
             value={formData.email}
             onChange={handleChange}
             required
+            readOnly
           />
-
           <label>Description</label>
           <textarea
             name="description"
             value={formData.description}
             onChange={handleChange}
             rows={3}
+            readOnly
           />
 
+          {item?.images && item.images.length > 0 && (
+            <div className="request-images">
+              <label>Job Order Images</label>
+              <div className="image-gallery">
+                {item.images.map((img, i) => (
+                  <div className="preview-item">
+                    <img
+                      key={i}
+                      src={img}
+                      alt={`Request image ${i + 1}`}
+                      className="request-image"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="add-note">
+            <label>Add Job History Note</label>
+            <textarea
+              name="newNote"
+              value={formData.newNote || ""}
+              onChange={(e) =>
+                setFormData({ ...formData, newNote: e.target.value })
+              }
+              rows={2}
+              placeholder="Add job update..."
+            />
+            <button
+              type="button"
+              className="add-note-btn"
+              disabled={loading || !formData.newNote}
+              onClick={async () => {
+                setLoading(true);
+                try {
+                  const res = await fetch(
+                    `${HiiincHomeDashboardData.apiRoot}add-vendor-request-note`,
+                    {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                        "X-WP-Nonce": HiiincHomeDashboardData.nonce,
+                      },
+                      credentials: "include",
+                      body: JSON.stringify({
+                        id: item.id,
+                        note: formData.newNote,
+                      }),
+                    }
+                  );
+                  const json = await res.json();
+                  if (json.success) {
+                    setFormData((prev) => ({
+                      ...prev,
+                      newNote: "",
+                    }));
+                    // Update local history
+                    item.history = json.data;
+                  }
+                } catch (err) {
+                  console.error("Failed to add note", err);
+                } finally {
+                  setLoading(false);
+                }
+              }}
+            >
+              Add Note
+            </button>
+          </div>
           <label>Status</label>
           <select name="status" value={formData.status} onChange={handleChange}>
             <option value="Pending">Pending</option>
             <option value="Active">Active</option>
             <option value="Completed">Completed</option>
           </select>
+
+          {item?.history && item.history.length > 0 && (
+            <div className="request-history">
+              <label>Job History</label>
+              <ul className="history-list">
+                {item.history.map((h, i) => (
+                  <li key={i}>
+                    <strong>{h.date}</strong> — {h.note} <em>by {h.author}</em>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <div className="modal-actions">
             <button type="button" onClick={onClose} className="cancel-btn">

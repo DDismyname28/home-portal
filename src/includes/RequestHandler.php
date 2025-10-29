@@ -49,6 +49,18 @@ class RequestHandler {
             'callback' => [$this, 'update_vendor_request'],
             'permission_callback' => '__return_true',
         ]);
+
+        register_rest_route('home-portal/v1', '/add-vendor-request-note', [
+            'methods'  => 'POST',
+            'callback' => [$this, 'add_vendor_request_note'],
+            'permission_callback' => '__return_true',
+        ]);
+
+        register_rest_route('home-portal/v1', '/get-customers', [
+            'methods'  => 'GET',
+            'callback' => [$this, 'get_customers'],
+            'permission_callback' => '__return_true',
+        ]);
     }
 
     /**
@@ -78,7 +90,7 @@ class RequestHandler {
             $categories = wp_get_post_terms($post->ID, 'request_category', ['fields' => 'names']);
             $photos = get_post_meta($post->ID, 'photos', true);
             $photos = is_array($photos) ? $photos : [];
-
+            $history = get_post_meta($post->ID, 'request_history', true);
             $requests[] = [
                 'id' => $post->ID,
                 'category' => implode(', ', $categories),
@@ -88,6 +100,7 @@ class RequestHandler {
                 'timePreference' => get_post_meta($post->ID, 'schedule_period', true),
                 'status' => get_post_meta($post->ID, 'status', true) ?: 'Pending',
                 'photos' => array_map('wp_get_attachment_url', $photos),
+                'history'     => is_array($history) ? $history : [], // 🟢 Add this line
             ];
         }
 
@@ -371,6 +384,14 @@ class RequestHandler {
             $requester = get_userdata($row['post_author']);
             $categories = wp_get_post_terms($row['ID'], 'request_category', ['fields' => 'names']);
 
+            $attachments = get_attached_media('image', $row['ID']);
+            $image_urls = [];
+
+            foreach ($attachments as $attachment) {
+                $image_urls[] = wp_get_attachment_url($attachment->ID);
+            }
+
+            $history = get_post_meta($row['ID'], 'request_history', true);
             $data[] = [
                 'id'          => intval($row['ID']),
                 'requester'   => $requester ? $requester->display_name : 'Unknown',
@@ -378,6 +399,8 @@ class RequestHandler {
                 'category'    => implode(', ', $categories) ?: 'N/A',
                 'description' => $row['description'] ?: '',
                 'status'      => $row['status'] ?: 'Pending',
+                'images'      => $image_urls,
+                'history'     => is_array($history) ? $history : [], // 🟢 Add this line
             ];
         }
 
@@ -439,9 +462,157 @@ class RequestHandler {
             update_post_meta($request_id, 'status', $status);
         }
 
+        // 🟢 Email requester before returning
+        $requester_id = get_post_field('post_author', $request_id);
+        if ($requester_id) {
+            $requester = get_userdata($requester_id);
+            if ($requester) {
+                $to = $requester->user_email;
+                $subject = 'Your service request has been updated';
+                $message = "Hello {$requester->display_name},\n\n";
+                $message .= "Your request (ID #{$request_id}) has been updated by your service provider.\n\n";
+
+                if (!empty($status)) {
+                    $message .= "🟢 New Status: {$status}\n";
+                }
+                if (!empty($description)) {
+                    $message .= "\n📝 Updated Description:\n{$description}\n";
+                }
+
+                $message .= "\nYou can view your full request details in your dashboard.\n\n";
+                $message .= "Best regards,\nHome Portal Team";
+
+                wp_mail($to, $subject, $message);
+            }
+        }
+
         return rest_ensure_response([
             'success' => true,
-            'message' => 'Request updated successfully.'
+            'message' => 'Request updated successfully and email sent.'
+        ]);
+    }
+
+
+    public function add_vendor_request_note($request) {
+        $request_id = intval($request->get_param('id'));
+        $note       = sanitize_textarea_field($request->get_param('note'));
+        $date       = current_time('mysql');
+        $user       = wp_get_current_user();
+
+        if (!$request_id || empty($note)) {
+            return rest_ensure_response(['success' => false, 'message' => 'Invalid data.']);
+        }
+
+        // Permission check: must be provider of this request
+        $provider_match = get_post_meta($request_id, 'provider', true);
+        if ($provider_match !== $user->user_login && intval($provider_match) !== $user->ID) {
+            return rest_ensure_response(['success' => false, 'message' => 'Unauthorized.']);
+        }
+
+        // Load current history
+        $history = get_post_meta($request_id, 'request_history', true);
+        if (!is_array($history)) {
+            $history = [];
+        }
+
+        // Add new note
+        $history[] = [
+            'date'   => $date,
+            'author' => $user->display_name,
+            'note'   => $note,
+        ];
+
+        update_post_meta($request_id, 'request_history', $history);
+
+        // 🟢 Email notification before return
+        $requester_id = get_post_field('post_author', $request_id);
+        if ($requester_id) {
+            $requester = get_userdata($requester_id);
+            if ($requester) {
+                $to = $requester->user_email;
+                $subject = 'New update on your service request';
+                $message = "Hello {$requester->display_name},\n\n";
+                $message .= "A new update has been added to your request (ID #{$request_id}):\n\n";
+                $message .= "\"{$note}\"\n\n";
+                $message .= "Added by: {$user->display_name} on {$date}\n\n";
+                $message .= "You can view the full history in your dashboard.\n\n";
+                $message .= "Best regards,\nHome Portal Team";
+
+                wp_mail($to, $subject, $message);
+            }
+        }
+
+        return rest_ensure_response([
+            'success' => true,
+            'message' => 'Note added successfully and email sent.',
+            'data' => $history,
+        ]);
+    }
+
+    public function get_customers($request) {
+        $user_id = get_current_user_id();
+        $user = get_userdata($user_id);
+
+        if (!$user || !in_array('local_provider', (array) $user->roles)) {
+            return rest_ensure_response([
+                'success' => false,
+                'message' => 'Only local providers can access customers.'
+            ]);
+        }
+
+        global $wpdb;
+        $table_posts = $wpdb->posts;
+        $table_meta  = $wpdb->postmeta;
+
+        // Fetch all customers connected to this provider’s requests
+        $results = $wpdb->get_results(
+            $wpdb->prepare("
+            SELECT DISTINCT p.post_author
+            FROM {$table_posts} AS p
+            INNER JOIN {$table_meta} AS pm ON p.ID = pm.post_id
+            WHERE p.post_type = 'vendor_request'
+              AND p.post_status IN ('publish', 'draft')
+              AND pm.meta_key = 'provider'
+              AND (pm.meta_value = %s OR pm.meta_value = %d)
+        ", $user->user_login, $user_id)
+        );
+
+        $customers = [];
+        foreach ($results as $row) {
+            $customer_id = intval($row->post_author);
+            $customer = get_userdata($customer_id);
+            if (!$customer) continue;
+
+            $email = $customer->user_email;
+            $status = get_user_meta($customer_id, 'customer_status', true) ?: 'Active';
+
+            $streetAddress = get_user_meta($customer_id, 'streetAddress', true);
+            $zipcode     = get_user_meta($customer_id, 'zipcode', true);
+            $state       = get_user_meta($customer_id, 'state', true);
+            $city        = get_user_meta($customer_id, 'city', true);
+
+            $address = trim(implode(', ', array_filter([$streetAddress, $zipcode, $city, $state])));
+
+            // Merge if same email already exists
+            if (isset($customers[$email])) {
+                $existing = &$customers[$email];
+                if (!empty($address) && strpos($existing['address'], $address) === false) {
+                    $existing['address'] .= ($existing['address'] ? ' | ' : '') . $address;
+                }
+            } else {
+                $customers[$email] = [
+                    'id'      => $customer_id,
+                    'name'    => $customer->display_name ?: 'Unknown',
+                    'email'   => $email,
+                    'address' => $address ?: '—',
+                    'status'  => $status,
+                ];
+            }
+        }
+
+        return rest_ensure_response([
+            'success' => true,
+            'data' => array_values($customers)
         ]);
     }
 }
