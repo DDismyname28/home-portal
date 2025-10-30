@@ -192,13 +192,65 @@ export default function ProviderDetails() {
                     <tr>
                       <td colSpan="3" style={styles.accordion}>
                         {provider.services && provider.services.length > 0 ? (
-                          <table style={{ ...styles.table, marginTop: "10px" }}>
-                            <thead>
+                          <table
+                            style={{
+                              ...styles.table,
+                              marginTop: "10px",
+                              backgroundColor: "#bbddf5",
+                            }}
+                          >
+                            <thead
+                              style={{
+                                background: "#bbddf5",
+                                paddingLeft: "10px",
+                                textAlign: "left",
+                              }}
+                            >
                               <tr>
-                                <th style={styles.th}>Service</th>
-                                <th style={styles.th}>Description</th>
-                                <th style={styles.th}>Price</th>
-                                <th style={styles.th}>Status</th>
+                                <th
+                                  style={{
+                                    background: "#a8d2f0ff",
+                                    paddingLeft: "10px",
+                                    textAlign: "left",
+                                    paddingTop: "12px",
+                                    paddingBottom: "12px",
+                                  }}
+                                >
+                                  Service
+                                </th>
+                                <th
+                                  style={{
+                                    background: "#a8d2f0ff",
+                                    paddingLeft: "10px",
+                                    textAlign: "left",
+                                    paddingTop: "12px",
+                                    paddingBottom: "12px",
+                                  }}
+                                >
+                                  Description
+                                </th>
+                                <th
+                                  style={{
+                                    background: "#a8d2f0ff",
+                                    paddingLeft: "10px",
+                                    textAlign: "left",
+                                    paddingTop: "12px",
+                                    paddingBottom: "12px",
+                                  }}
+                                >
+                                  Price
+                                </th>
+                                <th
+                                  style={{
+                                    background: "#a8d2f0ff",
+                                    paddingLeft: "10px",
+                                    textAlign: "left",
+                                    paddingTop: "12px",
+                                    paddingBottom: "12px",
+                                  }}
+                                >
+                                  Status
+                                </th>
                               </tr>
                             </thead>
                             <tbody>
