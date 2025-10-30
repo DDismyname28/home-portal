@@ -29,6 +29,12 @@ class ServiceHandler {
             'callback' => [$this, 'delete_service'],
             'permission_callback' => '__return_true',
         ]);
+
+        register_rest_route('home-portal/v1', '/providers', [
+            'methods'  => 'GET',
+            'callback' => [$this, 'get_providers'],
+            'permission_callback' => '__return_true',
+        ]);
     }
 
     public function register_service_category_taxonomy() {
@@ -83,7 +89,7 @@ class ServiceHandler {
                 'ID'           => $id,
                 'post_title'   => $name,
                 'post_content' => $description,
-                'post_status'  => 'publish',
+                'post_status' => ($status === 'Inactive') ? 'draft' : 'publish',
             ], true);
 
             if (is_wp_error($post_id)) {
@@ -202,5 +208,42 @@ class ServiceHandler {
             'message' => 'Service deleted successfully.',
             'id'      => $id,
         ];
+    }
+
+    public function get_providers() {
+        // Get all local_provider users
+        $args = [
+            'role' => 'local_provider',
+            'number' => -1,
+        ];
+        $users = get_users($args);
+        $providers = [];
+
+        foreach ($users as $user) {
+            // Fetch vendor_service posts by this provider
+            $services = get_posts([
+                'post_type'   => 'vendor_service',
+                'post_status' => 'publish',
+                'author'      => $user->ID,
+                'numberposts' => -1,
+            ]);
+
+            $providers[] = [
+                'id'       => $user->ID,
+                'name'     => $user->display_name,
+                'email'    => $user->user_email,
+                'services' => array_map(function ($service) {
+                    return [
+                        'title'            => get_the_title($service),
+                        'description'      => get_the_excerpt($service),
+                        'price'            => get_post_meta($service->ID, 'price', true),
+                        'important_notes'  => get_post_meta($service->ID, 'important_notes', true),
+                        'status'           => get_post_meta($service->ID, 'status', true),
+                    ];
+                }, $services),
+            ];
+        }
+
+        return rest_ensure_response($providers);
     }
 }

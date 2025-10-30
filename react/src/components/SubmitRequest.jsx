@@ -153,6 +153,8 @@ export default function Requests() {
           <option value="all">All Status</option>
           <option value="Pending">Pending</option>
           <option value="Approved">Approved</option>
+          <option value="Active">Active</option>
+          <option value="Completed">Completed</option>
           <option value="Declined">Declined</option>
         </select>
       </div>
@@ -178,58 +180,72 @@ export default function Requests() {
               </tr>
             </thead>
             <tbody>
-              {pageItems.map((item) => (
-                <tr key={item.id}>
-                  <td>{item.category}</td>
-                  <td>{item.provider || "N/A"}</td>
-                  <td>{item.timePreference}</td>
-                  <td>{item.date}</td>
-                  <td className="truncate" title={item.description}>
-                    {item.description}
-                  </td>
-                  <td>
-                    {item.photos && item.photos.length > 0 ? (
-                      item.photos.map((url, i) => (
-                        <img
-                          key={i}
-                          src={url}
-                          alt="upload"
-                          style={{ width: 50, marginRight: 5 }}
-                        />
-                      ))
-                    ) : (
-                      <span>No photos</span>
-                    )}
-                  </td>
-                  <td>
-                    {item.history && item.history.length > 0 ? (
-                      <ul className="history-list">
-                        {item.history.map((h, i) => (
-                          <li key={i}>
-                            <strong>{h.date}</strong> — {h.note}{" "}
-                            <em>by {h.author}</em>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <span>No history</span>
-                    )}
-                  </td>
-                  <td>
-                    <span className={`status ${item.status.toLowerCase()}`}>
-                      {item.status}
-                    </span>
-                  </td>
-                  <td className="actions">
-                    <button
-                      className="delete-btn"
-                      onClick={() => handleDelete(item.id)}
-                    >
-                      <FaTrash />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {pageItems.map((item) => {
+                const isDeletable = item.status?.toLowerCase() === "pending";
+                return (
+                  <tr key={item.id}>
+                    <td>{item.category}</td>
+                    <td>{item.provider || "N/A"}</td>
+                    <td>{item.timePreference}</td>
+                    <td>{item.date}</td>
+                    <td className="truncate" title={item.description}>
+                      {item.description}
+                    </td>
+                    <td>
+                      {item.photos && item.photos.length > 0 ? (
+                        item.photos.map((url, i) => (
+                          <img
+                            key={i}
+                            src={url}
+                            alt="upload"
+                            style={{ width: 50, marginRight: 5 }}
+                          />
+                        ))
+                      ) : (
+                        <span>No photos</span>
+                      )}
+                    </td>
+                    <td>
+                      {item.history && item.history.length > 0 ? (
+                        <ul className="history-list">
+                          {item.history.map((h, i) => (
+                            <li key={i}>
+                              <strong>{h.date}</strong> — {h.note}{" "}
+                              <em>by {h.author}</em>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <span>No history</span>
+                      )}
+                    </td>
+                    <td>
+                      <span className={`status ${item.status.toLowerCase()}`}>
+                        {item.status}
+                      </span>
+                    </td>
+                    <td className="actions">
+                      <button
+                        className="delete-btn"
+                        onClick={() => handleDelete(item.id)}
+                        disabled={!isDeletable}
+                        style={
+                          !isDeletable
+                            ? { opacity: 0.5, cursor: "not-allowed" }
+                            : {}
+                        }
+                        title={
+                          !isDeletable
+                            ? "You can only delete pending requests"
+                            : "Delete request"
+                        }
+                      >
+                        <FaTrash />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -388,6 +404,7 @@ function RequestModal({ onClose, onSave }) {
         <h2>Create Request</h2>
 
         <form onSubmit={handleSubmit}>
+          {/* Category Dropdown */}
           <label>Service Category</label>
           <select
             name="category"

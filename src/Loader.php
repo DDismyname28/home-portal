@@ -11,6 +11,7 @@ use HiiincHomePortalApp\Includes\Dashboard;
 use HiiincHomePortalApp\Includes\ProfileHandler;
 use HiiincHomePortalApp\Includes\ServiceHandler;
 use HiiincHomePortalApp\Includes\RequestHandler;
+use HiiincHomePortalApp\Includes\ReportsHandler;
 
 class Loader {
     public function __construct() {
@@ -23,5 +24,6 @@ class Loader {
         new ProfileHandler();
         new ServiceHandler();
         new RequestHandler();
+        new ReportsHandler();
     }
 }
