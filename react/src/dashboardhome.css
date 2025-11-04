@@ -183,3 +183,14 @@
   color: #f59e0b;
   font-weight: 600;
 }
+
+.summary-card {
+  background: linear-gradient(145deg, #1a1f360d, #becce93d);
+  border-radius: 1rem;
+  box-shadow: 0 3px 14px #757474fa;
+  padding: 1.75rem;
+  text-align: left;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
