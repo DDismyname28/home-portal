@@ -7,31 +7,34 @@ export default function DashboardHome() {
   const [streetViewUrl, setStreetViewUrl] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [apiKey, setApiKey] = useState(""); // <-- ✅ API Key loaded dynamically
+  const [mapsApiKey, setMapsApiKey] = useState(""); // ✅ Google Maps
+  const [propertyApiKey, setPropertyApiKey] = useState(""); // ✅ Property Data API (future use)
 
   /**
-   * Fetch Google Maps API Key from WP Settings REST endpoint
+   * Fetch API Keys from WP Settings REST endpoint
    */
   useEffect(() => {
-    const fetchApiKey = async () => {
+    const fetchApiKeys = async () => {
       try {
         const res = await fetch(`${HiiincHomeDashboardData.apiRoot}settings`, {
           method: "GET",
           credentials: "include",
+          headers: { "X-WP-Nonce": HiiincHomeDashboardData.nonce },
         });
         const json = await res.json();
 
-        if (json.success && json.apiKey) {
-          setApiKey(json.apiKey);
+        if (json.success) {
+          if (json.googleMapsApiKey) setMapsApiKey(json.googleMapsApiKey);
+          if (json.propertyApiKey) setPropertyApiKey(json.propertyApiKey);
         } else {
-          console.warn("No API key found in settings");
+          console.warn("API keys missing in settings response");
         }
       } catch (err) {
-        console.error("Error fetching API key:", err);
+        console.error("Error fetching API keys:", err);
       }
     };
 
-    fetchApiKey();
+    fetchApiKeys();
   }, []);
 
   /**
@@ -61,10 +64,10 @@ export default function DashboardHome() {
 
   /**
    * Fetch user data & generate Street View URL
-   * Waits until apiKey is available ✅
+   * Waits until Maps API key is available ✅
    */
   useEffect(() => {
-    if (!apiKey) return; // <-- ✅ don't run until API key is ready
+    if (!mapsApiKey) return; // ✅ don't run until Google Maps key is loaded
 
     const fetchUser = async () => {
       try {
@@ -97,7 +100,7 @@ export default function DashboardHome() {
             const geoRes = await fetch(
               `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
                 fullAddress
-              )}&key=${apiKey}`
+              )}&key=${mapsApiKey}`
             );
             const geoData = await geoRes.json();
 
@@ -108,7 +111,7 @@ export default function DashboardHome() {
           }
 
           if (lat && lng) {
-            const embedUrl = `https://www.google.com/maps/embed/v1/streetview?key=${apiKey}&location=${lat},${lng}&heading=210&pitch=10&fov=90`;
+            const embedUrl = `https://www.google.com/maps/embed/v1/streetview?key=${mapsApiKey}&location=${lat},${lng}&heading=210&pitch=10&fov=90`;
             setStreetViewUrl(embedUrl);
           }
         }
@@ -118,7 +121,7 @@ export default function DashboardHome() {
     };
 
     fetchUser();
-  }, [apiKey]); // ✅ re-run when API key arrives
+  }, [mapsApiKey]); // ✅ re-run when API key arrives
 
   const computeSummary = () => {
     if (!report || !report.success) return null;
@@ -203,8 +206,8 @@ export default function DashboardHome() {
 
           <section className="street-view-section">
             <h2>Street View</h2>
-            {!apiKey && <p>GEO Location API key not found.</p>}
-            {apiKey && streetViewUrl ? (
+            {!mapsApiKey && <p>Google Maps API key not found.</p>}
+            {mapsApiKey && streetViewUrl ? (
               <iframe
                 title="Street View"
                 src={streetViewUrl}
@@ -218,7 +221,7 @@ export default function DashboardHome() {
                 allowFullScreen
                 loading="lazy"
               ></iframe>
-            ) : apiKey ? (
+            ) : mapsApiKey ? (
               <p>No address available to show Street View.</p>
             ) : null}
           </section>

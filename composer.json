@@ -13,7 +13,9 @@
       "email": "djofil@hiiinc.net"
     }
   ],
-  "require": {},
+  "require": {
+    "guzzlehttp/guzzle": "^7.10"
+  },
   "config": {
     "platform": {
       "php": "7.4.0"
